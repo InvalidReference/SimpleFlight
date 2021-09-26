@@ -1,0 +1,96 @@
+-- Services
+local userInputService = game:GetService("UserInputService")
+local runService = game:GetService("RunService")
+
+-- player, character and camera Instances
+local camera = workspace.CurrentCamera
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+
+-- Humanoid stuff and things
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+local humanoid = character:WaitForChild("Humanoid")
+
+-- Getting Player controlls
+local playerScripts = player:WaitForChild("PlayerScripts")
+local playerModule = playerScripts:WaitForChild("PlayerModule")
+local controllModule = require(playerModule):GetControls()
+
+-- Config
+local SPEED = .5
+local ENABLE_KEY = Enum.KeyCode.E
+
+-- Process variables
+local isActive = false
+local runServiceLoop = nil
+local currentBodyMover = nil
+
+local movementNormals = {
+	[Enum.KeyCode.W] = function() return camera.CFrame.LookVector end,
+	[Enum.KeyCode.S] = function() return camera.CFrame.LookVector * -1 end,
+	[Enum.KeyCode.D] = function() return camera.CFrame.RightVector end,
+	[Enum.KeyCode.A] = function() return camera.CFrame.RightVector * -1 end,
+	[Enum.KeyCode.Space] = function() return camera.CFrame.UpVector end,
+	[Enum.KeyCode.LeftShift] = function() return camera.CFrame.UpVector * -1 end,
+}
+
+-- Helper functions
+local function AddBodyMovers(humanoidRootPart)
+	
+	local bodyPosition = Instance.new("BodyPosition")
+	bodyPosition.Position = humanoidRootPart.Position
+	bodyPosition.MaxForce = Vector3.new(10000,10000,10000)
+	bodyPosition.P = 20000
+	bodyPosition.D = 1000
+	
+	bodyPosition.Parent = humanoidRootPart
+	
+	return bodyPosition
+end
+
+-- function for enableing the flight
+local function Enable()
+	humanoid.PlatformStand = true
+	isActive = true
+	
+	local bodyMover = AddBodyMovers(humanoidRootPart)
+	currentBodyMover = bodyMover
+	
+	local function ChangePosition(normal)
+		bodyMover.Position += normal * SPEED
+	end
+	
+	runServiceLoop = runService.RenderStepped:Connect(function()
+		for keyCode, func in pairs(movementNormals) do
+			if userInputService:IsKeyDown(keyCode) == false then continue end
+			ChangePosition(func())
+		end
+	end)
+	
+	controllModule:Disable()
+end
+
+-- function for disableing the flight
+local function Disable()
+	humanoid.PlatformStand = false
+	isActive = false
+	
+	runServiceLoop:Disconnect()
+	currentBodyMover:Destroy()
+	controllModule:Enable()
+end
+
+local function InputBegan(input)
+	if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+	if input.KeyCode ~= ENABLE_KEY then return end
+	
+	if isActive then
+		Disable()
+	else
+		Enable()
+	end
+end
+
+-- inputbegan connection
+
+userInputService.InputBegan:Connect(InputBegan)
